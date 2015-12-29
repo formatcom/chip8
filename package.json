@@ -8,7 +8,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/formatcom/chit8.git"
+    "url": "git+https://github.com/formatcom/chip8.git"
   },
   "keywords": [
     "emulator",
@@ -22,9 +22,9 @@
   "author": "Vinicio Valbuena (FormatCom)",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/formatcom/chit8/issues"
+    "url": "https://github.com/formatcom/chip8/issues"
   },
-  "homepage": "https://github.com/formatcom/chit8#readme",
+  "homepage": "https://github.com/formatcom/chip8#readme",
   "devDependencies": {
     "browserify": "^12.0.1",
     "coffeeify": "^2.0.1"
