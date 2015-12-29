@@ -5,6 +5,7 @@
   "main": "index.coffee",
   "scripts": {
     "build": "browserify -t coffeeify index.coffee > main.js",
+    "clean": "rm -rf main*.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
