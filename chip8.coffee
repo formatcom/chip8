@@ -10,3 +10,4 @@ if !args.file then console.log 'require --file ROM'
 else
   cpu.load rom.read(args.file)
   cpu.execute() for cycle in [0..10]
+  console.log cpu.v

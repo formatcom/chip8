@@ -23,8 +23,9 @@ Cpu = ->
 cpuNULL = (opcode) -> console.log "Instruction: NULL #{decToHex(opcode)}"
 cpu6XKK = (opcode) ->
   console.log "Instruction: LD Vx, byte #{decToHex(opcode)}"
+  x  = (opcode&0x0F00) >> 8
   kk = opcode&0x00FF
-  console.log decToHex(kk)
+  @v[x] = kk
 
 Cpu.prototype =
   init: ->
@@ -53,7 +54,7 @@ Cpu.prototype =
   execute: ->
     opcode  = @fetch()
     address = (opcode&0xF000)>>12
-    @table[address](opcode)
+    @table[address].call @, opcode
 
 module.exports = Cpu
 
