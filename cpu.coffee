@@ -6,18 +6,51 @@ Cpu = ->
 
   @v = new Uint8Array 16
 
-  @i = 0x0000 # 16bit 
+  @i = 0 # 16bit 
 
-  @delay = 0x00 # 8bit
-  @timer = 0x00 # 8bit
+  @delay = 0 # 8bit
+  @timer = 0 # 8bit
 
-  @pc = 0x000 # 16bit
+  @pc = 0x200 # 16bit
 
   @stack = new Uint16Array 16
-  @sp = 0x00 # 8bit
+  @sp = 0 # 8bit
+
   return
 
+# Instructions Chip8
+cpuNULL = (opcode) ->
+  console.log "Instruction: NULL #{opcode.toString(16).toUpperCase()}"
+
+
 Cpu.prototype =
+  init: ->
+    @ram.map (byte) ->
+      byte = 0
+    @v.map (byte) ->
+      byte = 0
+    @stack.map (_2bytes) ->
+      _2bytes = 0
+    @i  = @delay = @timer = @sp = 0
+    @pc = 0x200
+
+  table: [
+    cpuNULL, cpuNULL, cpuNULL, cpuNULL, cpuNULL, cpuNULL, cpuNULL, cpuNULL
+    cpuNULL, cpuNULL, cpuNULL, cpuNULL, cpuNULL, cpuNULL, cpuNULL, cpuNULL
+  ]
+  
   load: (rom) -> @ram[address + 0x200] = byte for byte, address in rom
 
+  fetch: ->
+    {pc, ram} = @
+    opcode = (ram[pc]<<8) + ram[pc+1] # 16bit
+    pc += 2
+    return opcode
+
+  execute: ->
+    opcode  = @fetch()
+    address = (opcode&0xF000)>>12
+    @table[address](opcode)
+
 module.exports = Cpu
+
