@@ -9,4 +9,4 @@ rom = new Rom()
 if !args.file then console.log 'require --file ROM'
 else
   cpu.load rom.read(args.file)
-  cpu.execute()
+  cpu.execute() for cycle in [0..10]

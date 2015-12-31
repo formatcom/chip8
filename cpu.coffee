@@ -1,4 +1,5 @@
 # Emulator CHIP-8
+decToHex = require './decToHex'
 
 Cpu = ->
   ram  = new ArrayBuffer 0xFFF # 4kb
@@ -19,9 +20,11 @@ Cpu = ->
   return
 
 # Instructions Chip8
-cpuNULL = (opcode) ->
-  console.log "Instruction: NULL #{opcode.toString(16).toUpperCase()}"
-
+cpuNULL = (opcode) -> console.log "Instruction: NULL #{decToHex(opcode)}"
+cpu6XKK = (opcode) ->
+  console.log "Instruction: LD Vx, byte #{decToHex(opcode)}"
+  kk = opcode&0x00FF
+  console.log decToHex(kk)
 
 Cpu.prototype =
   init: ->
@@ -35,16 +38,16 @@ Cpu.prototype =
     @pc = 0x200
 
   table: [
-    cpuNULL, cpuNULL, cpuNULL, cpuNULL, cpuNULL, cpuNULL, cpuNULL, cpuNULL
+    cpuNULL, cpuNULL, cpuNULL, cpuNULL, cpuNULL, cpuNULL, cpu6XKK, cpuNULL
     cpuNULL, cpuNULL, cpuNULL, cpuNULL, cpuNULL, cpuNULL, cpuNULL, cpuNULL
   ]
   
   load: (rom) -> @ram[address + 0x200] = byte for byte, address in rom
 
   fetch: ->
-    {pc, ram} = @
+    {ram, pc} = @
     opcode = (ram[pc]<<8) + ram[pc+1] # 16bit
-    pc += 2
+    @pc += 2
     return opcode
 
   execute: ->
