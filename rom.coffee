@@ -3,7 +3,7 @@
 Rom = ->
 
 Rom.prototype =
-  read: (file) -> console.log file
+  read: (file) -> @buffer = readFileSync file
   
 
 module.exports = Rom

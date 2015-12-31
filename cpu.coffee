@@ -17,5 +17,7 @@ Cpu = ->
   @sp = 0x00 # 8bit
   return
 
+Cpu.prototype =
+  load: (rom) -> @ram[address + 0x200] = byte for byte, address in rom
 
 module.exports = Cpu

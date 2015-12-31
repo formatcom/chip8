@@ -6,4 +6,4 @@ Rom  = require './rom'
 cpu = new Cpu()
 rom = new Rom()
 
-rom.read(args.file)
+if args.file then cpu.load rom.read(args.file) else console.log 'require --file ROM'
