@@ -20,12 +20,15 @@ Cpu = ->
   return
 
 # Instructions Chip8
-cpuNULL = (opcode) -> console.log "Instruction: NULL #{decToHex(opcode)}"
-cpu6XKK = (opcode) ->
-  console.log "Instruction: LD Vx, byte #{decToHex(opcode)}"
-  x  = (opcode&0x0F00) >> 8
-  kk = opcode&0x00FF
-  @v[x] = kk
+cpuNULL = -> console.log "Instruction: NULL #{decToHex(@opcode)}"
+cpu6XKK = ->
+  console.log "Instruction: LD Vx, byte #{decToHex(@opcode)}"
+  @v[@x] = @kk
+cpuANNN = ->
+  console.log "Instruction: LD I, addr #{decToHex(@opcode)}"
+  @i = @nnn
+cpuDXYN = ->
+  console.log "Instruction: DRW Vx, Vy, nibble #{decToHex(@opcode)}"
 
 Cpu.prototype =
   init: ->
@@ -40,21 +43,26 @@ Cpu.prototype =
 
   table: [
     cpuNULL, cpuNULL, cpuNULL, cpuNULL, cpuNULL, cpuNULL, cpu6XKK, cpuNULL
-    cpuNULL, cpuNULL, cpuNULL, cpuNULL, cpuNULL, cpuNULL, cpuNULL, cpuNULL
+    cpuNULL, cpuNULL, cpuANNN, cpuNULL, cpuNULL, cpuDXYN, cpuNULL, cpuNULL
   ]
   
   load: (rom) -> @ram[address + 0x200] = byte for byte, address in rom
 
   fetch: ->
     {ram, pc} = @
-    opcode = (ram[pc]<<8) + ram[pc+1] # 16bit
+    @opcode = (ram[pc]<<8) + ram[pc+1] # 16bit
     @pc += 2
-    return opcode
 
   execute: ->
-    opcode  = @fetch()
-    address = (opcode&0xF000)>>12
-    @table[address].call @, opcode
+    @fetch()
+    address = (@opcode&0xF000)>>12
+
+    @nnn =  @opcode&0x0FFF
+    @kk  =  @nnn&0x0FF
+    @x   = (@nnn&0xF00) >> 8
+    @y   = (@nnn&0x0F0) >> 4
+    
+    @table[address].call @
 
 module.exports = Cpu
 
