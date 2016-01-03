@@ -36,6 +36,7 @@ Cpu = ->
     0xF0, 0x80, 0xF0, 0x80, 0x80 # F
   ]
 
+  @init()
   return
 
 # Instructions Chip8
@@ -63,9 +64,8 @@ LD_B_Vx = ->
   @ram[@i+2] = @x%10
 LD_Vx_I = ->
   console.log "FX65->Instruction: LD Vx, [I] #{decToHex(@opcode)}"
-  for address in [0..@x]
-    @v[address] = @ram[@i]
-
+  @v[address] = @ram[@i] for address in [0..@x]
+    
 Cpu.prototype =
   init: ->
     @ram.map (byte) ->
@@ -76,8 +76,8 @@ Cpu.prototype =
       _2bytes = 0
     @i  = @delay = @timer = @sp = 0
     @pc = 0x200
-    @memory[address] = byte for byte, address in hexChars
-
+    @ram[address] = byte for byte, address in @hexChars
+      
   table: [
     NULL, NULL, CALL_addr, NULL, NULL, NULL, LD_Vx_byte, NULL
     NULL, NULL, LD_I_addr, NULL, NULL, DRW_Vx_Vy_nibble, NULL, CPU_Extra
