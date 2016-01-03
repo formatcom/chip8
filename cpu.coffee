@@ -54,12 +54,17 @@ DRW_Vx_Vy_nibble = ->
   console.log "FAIL->Instruction: DRW Vx, Vy, nibble #{decToHex(@opcode)}"
 CPU_Extra = -> @extra[@y].call @
 LD_F_Vx = ->
-  console.log "FAIL->Instruction: LD F, Vx #{decToHex(@opcode)}"
+  console.log "FX29->Instruction: LD F, Vx #{decToHex(@opcode)}"
+  @i = @v[@x] * 5
 LD_B_Vx = ->
   console.log "FX33->Instruction: LD B, Vx #{decToHex(@opcode)}"
   @ram[@i]   = @x/100
   @ram[@i+1] = (@x/10)%10
   @ram[@i+2] = @x%10
+LD_Vx_I = ->
+  console.log "FX65->Instruction: LD Vx, [I] #{decToHex(@opcode)}"
+  for address in [0..@x]
+    @v[address] = @ram[@i]
 
 Cpu.prototype =
   init: ->
@@ -79,7 +84,7 @@ Cpu.prototype =
   ]
 
   extra: [
-    NULL, NULL, LD_F_Vx, LD_B_Vx, NULL, NULL, NULL
+    NULL, NULL, LD_F_Vx, LD_B_Vx, NULL, NULL, LD_Vx_I
   ]
 
   load: (rom) -> @ram[address + 0x200] = byte for byte, address in rom
