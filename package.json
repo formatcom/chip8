@@ -6,6 +6,7 @@
   "scripts": {
     "build": "browserify -t coffeeify --extension=coffee index.coffee > main.js",
     "build:node": "coffee -c *.coffee",
+    "debug": "node debug chip8 --file ./rom/PONG",
     "clean": "rm -rf *.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
