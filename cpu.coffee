@@ -56,7 +56,10 @@ CPU_Extra = -> @extra[@y].call @
 LD_F_Vx = ->
   console.log "FAIL->Instruction: LD F, Vx #{decToHex(@opcode)}"
 LD_B_Vx = ->
-  console.log "FAIL->Instruction: LD B, Vx #{decToHex(@opcode)}"
+  console.log "FX33->Instruction: LD B, Vx #{decToHex(@opcode)}"
+  @ram[@i]   = @x/100
+  @ram[@i+1] = (@x/10)%10
+  @ram[@i+2] = @x%10
 
 Cpu.prototype =
   init: ->
