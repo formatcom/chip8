@@ -17,6 +17,7 @@ Cpu = ->
   @stack = new Uint16Array 16
   @sp = 0 # 8bit
 
+  @screen   = [64*32]
   @hexChars = [
     0xF0, 0x90, 0x90, 0x90, 0xF0 # 0
     0x20, 0x60, 0x20, 0x20, 0x70 # 1
@@ -41,6 +42,13 @@ Cpu = ->
 
 # Instructions Chip8
 NULL = -> console.log "NULL->Instruction: #{decToHex(@opcode)}"
+CLS_RET = ->
+  {kk} = @
+  if kk == 0xE0
+    console.log "FAIL->Instruction: #{decToHex(@opcode)}"
+  else if kk == 0xEE
+    console.log "00EE->Instruction: #{decToHex(@opcode)}"
+    @screen = @screen.map (px) -> 0
 CALL_addr = ->
   console.log "2NNN->Instruction: CALL addr #{decToHex(@opcode)}"
   @stack[@sp++] = @pc
@@ -48,6 +56,9 @@ CALL_addr = ->
 LD_Vx_byte = ->
   console.log "6XKK->Instruction: LD Vx, byte #{decToHex(@opcode)}"
   @v[@x] = @kk
+ADD_Vx_byte = ->
+  console.log "7XKK->Instruction: ADD Vx, byte #{decToHex(@opcode)}"
+  @v[@x] += @kk
 LD_I_addr = ->
   console.log "ANNN->Instruction: LD I, addr #{decToHex(@opcode)}"
   @i = @nnn
@@ -68,18 +79,15 @@ LD_Vx_I = ->
     
 Cpu.prototype =
   init: ->
-    @ram.map (byte) ->
-      byte = 0
-    @v.map (byte) ->
-      byte = 0
-    @stack.map (_2bytes) ->
-      _2bytes = 0
+    @ram = @ram.map (byte) -> 0
+    @v = @v.map (byte) -> 0
+    @stack = @stack.map (_2bytes) -> 0
     @i  = @delay = @timer = @sp = 0
     @pc = 0x200
     @ram[address] = byte for byte, address in @hexChars
       
   table: [
-    NULL, NULL, CALL_addr, NULL, NULL, NULL, LD_Vx_byte, NULL
+    CLS_RET, NULL, CALL_addr, NULL, NULL, NULL, LD_Vx_byte, ADD_Vx_byte
     NULL, NULL, LD_I_addr, NULL, NULL, DRW_Vx_Vy_nibble, NULL, CPU_Extra
   ]
 
