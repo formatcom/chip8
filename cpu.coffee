@@ -59,6 +59,7 @@ LD_Vx_byte = ->
 ADD_Vx_byte = ->
   console.log "7XKK->Instruction: ADD Vx, byte #{decToHex(@opcode)}"
   @v[@x] += @kk
+ARITHMETIC = -> @arithmetic[@n].call @
 LD_I_addr = ->
   console.log "ANNN->Instruction: LD I, addr #{decToHex(@opcode)}"
   @i = @nnn
@@ -76,7 +77,10 @@ LD_B_Vx = ->
 LD_Vx_I = ->
   console.log "FX65->Instruction: LD Vx, [I] #{decToHex(@opcode)}"
   @v[address] = @ram[@i] for address in [0..@x]
-    
+LD_Vx_Vy = ->
+  console.log "8XY0->Instruction: LD Vx, Vy #{decToHex(@opcode)}"
+  @v[@x] = @v[@y]
+
 Cpu.prototype =
   init: ->
     @ram = @ram.map (byte) -> 0
@@ -88,11 +92,16 @@ Cpu.prototype =
       
   table: [
     CLS_RET, NULL, CALL_addr, NULL, NULL, NULL, LD_Vx_byte, ADD_Vx_byte
-    NULL, NULL, LD_I_addr, NULL, NULL, DRW_Vx_Vy_nibble, NULL, CPU_Extra
+    ARITHMETIC, NULL, LD_I_addr, NULL, NULL, DRW_Vx_Vy_nibble, NULL, CPU_Extra
   ]
 
   extra: [
     NULL, NULL, LD_F_Vx, LD_B_Vx, NULL, NULL, LD_Vx_I
+  ]
+
+  arithmetic: [
+    LD_Vx_Vy, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
   ]
 
   load: (rom) -> @ram[address + 0x200] = byte for byte, address in rom
