@@ -1,13 +1,7 @@
-isNode = require 'is-node'
-Canvas = require 'canvas'
-
 Display = (width, height, exp=1) ->
-  if !isNode
-    @element = document.createElement 'canvas'
-    @element.width  = width*exp
-    @element.height = height*exp
-  else
-    @element = new Canvas(width*exp, height*exp)
+  @element = document.createElement 'canvas'
+  @element.width  = width*exp
+  @element.height = height*exp
   @ctx = @element.getContext '2d'
   @width  = width
   @height = height

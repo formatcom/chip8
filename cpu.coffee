@@ -1,7 +1,7 @@
 # Emulator CHIP-8
 decTo = require './decTo'
 
-Cpu = ->
+Cpu = (display) ->
   ram  = new ArrayBuffer 0xFFF # 4kb
   @ram = new Uint8Array ram
 
@@ -17,7 +17,8 @@ Cpu = ->
   @stack = new Uint16Array 16
   @sp = 0 # 8bit
 
-  @screen    = new Array(64*32)
+  @display  = display
+  @screen   = new Array(64*32)
   @hexChars = [
     0xF0, 0x90, 0x90, 0x90, 0xF0 # 0
     0x20, 0x60, 0x20, 0x20, 0x70 # 1
@@ -45,10 +46,11 @@ NULL = -> console.log "NULL->Instruction: #{decTo.hex(@opcode)}"
 CLS_RET = ->
   {kk} = @
   if kk == 0xE0
-    console.log "0xE0->Instruction: #{decTo.hex(@opcode)}"
+    console.log "0xE0->Instruction: CLS #{decTo.hex(@opcode)}"
     @screen = @screen.map (px) -> 0
+    @display.clear()
   else if kk == 0xEE
-    console.log "00EE->Instruction: #{decTo.hex(@opcode)}"
+    console.log "00EE->Instruction: RET #{decTo.hex(@opcode)}"
     @pc = @stack[--@sp & 0xF]
 CALL_addr = ->
   console.log "2NNN->Instruction: CALL addr #{decTo.hex(@opcode)}"
@@ -71,10 +73,8 @@ DRW_Vx_Vy_nibble = ->
   console.log "DXYN->Instruction: DRW Vx, Vy, nibble #{decTo.hex(@opcode)}"
   {v, x, y, n, i, ram} = @
   @v[0xF] = 0
-  console.groupCollapsed 'DRW'
   for address in [0..n-1]
     sprite = ram[address+i]
-    console.log decTo.bin(sprite)
     for index in [0..7]
       sx  = (v[x] + index)   & 63
       sy  = (v[y] + address) & 31
@@ -82,9 +82,20 @@ DRW_Vx_Vy_nibble = ->
       px  = (sprite & (1 << (7-index))) != 0
       @v[0xF] |= @screen[pos] & px
       @screen[pos] ^= px
-  console.groupEnd()
-
+  @display.render @screen
 CPU_Extra = -> @extra[@y].call @
+LD_Vx_DT = ->
+  console.log "FX07->Instruction: LD Vx, DT #{decTo.hex(@opcode)}"
+  @v[@x] = @dt
+FX15_18_1E = ->
+  {kk} = @
+  if kk == 0x15
+    console.log "FX15->Instruction: LD DT, Vx #{decTo.hex(@opcode)}"
+    @dt = @v[@x]
+  else if kk == 0x18
+    console.log "FAIL->Instruction: LD ST, Vx #{decTo.hex(@opcode)}"
+  else if kk == 0x1E
+    console.log "FAIL->Instruction: ADD I, Vx #{decTo.hex(@opcode)}"
 LD_F_Vx = ->
   console.log "FX29->Instruction: LD F, Vx #{decTo.hex(@opcode)}"
   @i = @v[@x] * 5
@@ -113,7 +124,7 @@ Cpu.prototype =
   ]
 
   extra: [
-    NULL, NULL, LD_F_Vx, LD_B_Vx, NULL, NULL, LD_Vx_I, NULL
+    NULL, FX15_18_1E, LD_F_Vx, LD_B_Vx, NULL, NULL, LD_Vx_I, NULL
     NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
   ]
 
@@ -138,8 +149,12 @@ Cpu.prototype =
     @n   =  @kk&0x0F
     @x   = (@nnn&0xF00) >> 8
     @y   = (@nnn&0x0F0) >> 4
-
     
     @table[address].call @
+
+    @dt = @dt-1 if @dt
+    if @st
+      if --@st is 0
+        console.info 'beep'
 
 module.exports = Cpu

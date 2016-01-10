@@ -1,32 +1,21 @@
-args     = require('minimist')(process.argv.slice(2))
-isNode   = require 'is-node'
+isNode  = require 'is-node'
+{gui}   = require 'nw'
 
 Cpu     = require './cpu'
 Display = require './display'
 Rom     = require './rom'
 Clock   = require './clock'
 
-cpu     = new Cpu()
 display = new Display 64, 32, 10
+cpu     = new Cpu display
 rom     = new Rom display.element
 clock   = new Clock()
 
-if isNode
-  if !args.file then console.log 'require --file ROM'
-  else
-    rom.read(args.file, (err, data) ->
-      cpu.load data
-      clock.cycle ->
-        cpu.execute()
-        display.render cpu.screen
-      clock.start()
-    )
-else
-  document.body.appendChild display.element
-  rom.read (err, data) ->
-    cpu.load data
-    window.cpu = cpu
-    clock.cycle ->
-      cpu.execute()
-      display.render cpu.screen
-    clock.start()
+document.body.appendChild display.element
+if isNode then gui.Window.get().show()
+
+rom.read (err, data) ->
+  window.cpu = cpu
+  cpu.load data
+  clock.cycle -> cpu.execute()
+  clock.start()

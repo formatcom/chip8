@@ -1,10 +1,9 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
-(function (process){
-var Clock, Cpu, Display, Rom, args, clock, cpu, display, isNode, rom;
-
-args = require('minimist')(process.argv.slice(2));
+var Clock, Cpu, Display, Rom, clock, cpu, display, gui, isNode, rom;
 
 isNode = require('is-node');
+
+gui = require('nw').gui;
 
 Cpu = require('./cpu');
 
@@ -14,43 +13,31 @@ Rom = require('./rom');
 
 Clock = require('./clock');
 
-cpu = new Cpu();
-
 display = new Display(64, 32, 10);
+
+cpu = new Cpu(display);
 
 rom = new Rom(display.element);
 
 clock = new Clock();
 
+document.body.appendChild(display.element);
+
 if (isNode) {
-  if (!args.file) {
-    console.log('require --file ROM');
-  } else {
-    rom.read(args.file, function(err, data) {
-      cpu.load(data);
-      clock.cycle(function() {
-        cpu.execute();
-        return display.render(cpu.screen);
-      });
-      return clock.start();
-    });
-  }
-} else {
-  document.body.appendChild(display.element);
-  rom.read(function(err, data) {
-    cpu.load(data);
-    window.cpu = cpu;
-    clock.cycle(function() {
-      cpu.execute();
-      return display.render(cpu.screen);
-    });
-    return clock.start();
-  });
+  gui.Window.get().show();
 }
 
+rom.read(function(err, data) {
+  window.cpu = cpu;
+  cpu.load(data);
+  clock.cycle(function() {
+    return cpu.execute();
+  });
+  return clock.start();
+});
 
-}).call(this,require('_process'))
-},{"./clock":2,"./cpu":3,"./display":5,"./rom":10,"_process":7,"is-node":8,"minimist":9}],2:[function(require,module,exports){
+
+},{"./clock":2,"./cpu":3,"./display":5,"./rom":12,"is-node":9,"nw":10}],2:[function(require,module,exports){
 var Clock;
 
 Clock = function() {};
@@ -59,8 +46,10 @@ Clock.prototype = {
   cycle: function(cycle) {
     return this.cycle = cycle;
   },
-  getRequestAnimationFrame: function() {
-    return requestAnimationFrame || webkitRequestAnimationFrame || mozRequestAnimationFrame || oRequestAnimationFrame || msRequestAnimationFrame;
+  getRequestAnimationFrame: function(interval) {
+    return requestAnimationFrame || webkitRequestAnimationFrame || mozRequestAnimationFrame || oRequestAnimationFrame || msRequestAnimationFrame || function(callback) {
+      return setTimeout(interval, callback);
+    };
   },
   start: function() {
     var _loop, animationFrame, self;
@@ -78,21 +67,22 @@ module.exports = Clock;
 
 
 },{}],3:[function(require,module,exports){
-var ADD_Vx_byte, ARITHMETIC, CALL_addr, CLS_RET, CPU_Extra, Cpu, DRW_Vx_Vy_nibble, LD_B_Vx, LD_F_Vx, LD_I_addr, LD_Vx_I, LD_Vx_Vy, LD_Vx_byte, NULL, decTo;
+var ADD_Vx_byte, ARITHMETIC, CALL_addr, CLS_RET, CPU_Extra, Cpu, DRW_Vx_Vy_nibble, FX15_18_1E, LD_B_Vx, LD_F_Vx, LD_I_addr, LD_Vx_DT, LD_Vx_I, LD_Vx_Vy, LD_Vx_byte, NULL, decTo;
 
 decTo = require('./decTo');
 
-Cpu = function() {
+Cpu = function(display) {
   var ram;
   ram = new ArrayBuffer(0xFFF);
   this.ram = new Uint8Array(ram);
   this.v = new Uint8Array(16);
   this.i = 0;
-  this.delay = 0;
-  this.timer = 0;
+  this.dt = 0;
+  this.st = 0;
   this.pc = 0x200;
   this.stack = new Uint16Array(16);
   this.sp = 0;
+  this.display = display;
   this.screen = new Array(64 * 32);
   this.hexChars = [0xF0, 0x90, 0x90, 0x90, 0xF0, 0x20, 0x60, 0x20, 0x20, 0x70, 0xF0, 0x10, 0xF0, 0x80, 0xF0, 0xF0, 0x10, 0xF0, 0x10, 0xF0, 0x90, 0x90, 0xF0, 0x10, 0x10, 0xF0, 0x80, 0xF0, 0x10, 0xF0, 0xF0, 0x80, 0xF0, 0x90, 0xF0, 0xF0, 0x10, 0x20, 0x40, 0x40, 0xF0, 0x90, 0xF0, 0x90, 0xF0, 0xF0, 0x90, 0xF0, 0x10, 0xF0, 0xF0, 0x90, 0xF0, 0x90, 0x90, 0xE0, 0x90, 0xE0, 0x90, 0xE0, 0xF0, 0x80, 0x80, 0x80, 0xF0, 0xE0, 0x90, 0x90, 0x90, 0xE0, 0xF0, 0x80, 0xF0, 0x80, 0xF0, 0xF0, 0x80, 0xF0, 0x80, 0x80];
   this.init();
@@ -106,12 +96,13 @@ CLS_RET = function() {
   var kk;
   kk = this.kk;
   if (kk === 0xE0) {
-    console.log("0xE0->Instruction: " + (decTo.hex(this.opcode)));
-    return this.screen = this.screen.map(function(px) {
+    console.log("0xE0->Instruction: CLS " + (decTo.hex(this.opcode)));
+    this.screen = this.screen.map(function(px) {
       return 0;
     });
+    return this.display.clear();
   } else if (kk === 0xEE) {
-    console.log("00EE->Instruction: " + (decTo.hex(this.opcode)));
+    console.log("00EE->Instruction: RET " + (decTo.hex(this.opcode)));
     return this.pc = this.stack[--this.sp & 0xF];
   }
 };
@@ -151,10 +142,8 @@ DRW_Vx_Vy_nibble = function() {
   console.log("DXYN->Instruction: DRW Vx, Vy, nibble " + (decTo.hex(this.opcode)));
   v = this.v, x = this.x, y = this.y, n = this.n, i = this.i, ram = this.ram;
   this.v[0xF] = 0;
-  console.groupCollapsed('DRW');
   for (address = j = 0, ref = n - 1; 0 <= ref ? j <= ref : j >= ref; address = 0 <= ref ? ++j : --j) {
     sprite = ram[address + i];
-    console.log(decTo.bin(sprite));
     for (index = k = 0; k <= 7; index = ++k) {
       sx = (v[x] + index) & 63;
       sy = (v[y] + address) & 31;
@@ -164,11 +153,29 @@ DRW_Vx_Vy_nibble = function() {
       this.screen[pos] ^= px;
     }
   }
-  return console.groupEnd();
+  return this.display.render(this.screen);
 };
 
 CPU_Extra = function() {
   return this.extra[this.y].call(this);
+};
+
+LD_Vx_DT = function() {
+  console.log("FX07->Instruction: LD Vx, DT " + (decTo.hex(this.opcode)));
+  return this.v[this.x] = this.dt;
+};
+
+FX15_18_1E = function() {
+  var kk;
+  kk = this.kk;
+  if (kk === 0x15) {
+    console.log("FX15->Instruction: LD DT, Vx " + (decTo.hex(this.opcode)));
+    return this.dt = this.v[this.x];
+  } else if (kk === 0x18) {
+    return console.log("FAIL->Instruction: LD ST, Vx " + (decTo.hex(this.opcode)));
+  } else if (kk === 0x1E) {
+    return console.log("FAIL->Instruction: ADD I, Vx " + (decTo.hex(this.opcode)));
+  }
 };
 
 LD_F_Vx = function() {
@@ -208,7 +215,7 @@ Cpu.prototype = {
     this.stack = this.stack.map(function(_2bytes) {
       return 0;
     });
-    this.i = this.delay = this.timer = this.sp = 0;
+    this.i = this.dt = this.st = this.sp = 0;
     this.pc = 0x200;
     ref = this.hexChars;
     results = [];
@@ -219,7 +226,7 @@ Cpu.prototype = {
     return results;
   },
   table: [CLS_RET, NULL, CALL_addr, NULL, NULL, NULL, LD_Vx_byte, ADD_Vx_byte, ARITHMETIC, NULL, LD_I_addr, NULL, NULL, DRW_Vx_Vy_nibble, NULL, CPU_Extra],
-  extra: [NULL, NULL, LD_F_Vx, LD_B_Vx, NULL, NULL, LD_Vx_I, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL],
+  extra: [NULL, FX15_18_1E, LD_F_Vx, LD_B_Vx, NULL, NULL, LD_Vx_I, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL],
   arithmetic: [LD_Vx_Vy, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL],
   load: function(rom) {
     var address, byte, j, len, results;
@@ -245,7 +252,15 @@ Cpu.prototype = {
     this.n = this.kk & 0x0F;
     this.x = (this.nnn & 0xF00) >> 8;
     this.y = (this.nnn & 0x0F0) >> 4;
-    return this.table[address].call(this);
+    this.table[address].call(this);
+    if (this.dt) {
+      this.dt = this.dt - 1;
+    }
+    if (this.st) {
+      if (--this.st === 0) {
+        return console.info('beep');
+      }
+    }
   }
 };
 
@@ -276,23 +291,15 @@ module.exports = {
 
 
 },{}],5:[function(require,module,exports){
-var Canvas, Display, isNode;
-
-isNode = require('is-node');
-
-Canvas = require('canvas');
+var Display;
 
 Display = function(width, height, exp) {
   if (exp == null) {
     exp = 1;
   }
-  if (!isNode) {
-    this.element = document.createElement('canvas');
-    this.element.width = width * exp;
-    this.element.height = height * exp;
-  } else {
-    this.element = new Canvas(width * exp, height * exp);
-  }
+  this.element = document.createElement('canvas');
+  this.element.width = width * exp;
+  this.element.height = height * exp;
   this.ctx = this.element.getContext('2d');
   this.width = width;
   this.height = height;
@@ -327,9 +334,237 @@ Display.prototype = {
 module.exports = Display;
 
 
-},{"canvas":6,"is-node":8}],6:[function(require,module,exports){
+},{}],6:[function(require,module,exports){
 
 },{}],7:[function(require,module,exports){
+(function (process){
+// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+// resolves . and .. elements in a path array with directory names there
+// must be no slashes, empty elements, or device names (c:\) in the array
+// (so also no leading and trailing slashes - it does not distinguish
+// relative and absolute paths)
+function normalizeArray(parts, allowAboveRoot) {
+  // if the path tries to go above the root, `up` ends up > 0
+  var up = 0;
+  for (var i = parts.length - 1; i >= 0; i--) {
+    var last = parts[i];
+    if (last === '.') {
+      parts.splice(i, 1);
+    } else if (last === '..') {
+      parts.splice(i, 1);
+      up++;
+    } else if (up) {
+      parts.splice(i, 1);
+      up--;
+    }
+  }
+
+  // if the path is allowed to go above the root, restore leading ..s
+  if (allowAboveRoot) {
+    for (; up--; up) {
+      parts.unshift('..');
+    }
+  }
+
+  return parts;
+}
+
+// Split a filename into [root, dir, basename, ext], unix version
+// 'root' is just a slash, or nothing.
+var splitPathRe =
+    /^(\/?|)([\s\S]*?)((?:\.{1,2}|[^\/]+?|)(\.[^.\/]*|))(?:[\/]*)$/;
+var splitPath = function(filename) {
+  return splitPathRe.exec(filename).slice(1);
+};
+
+// path.resolve([from ...], to)
+// posix version
+exports.resolve = function() {
+  var resolvedPath = '',
+      resolvedAbsolute = false;
+
+  for (var i = arguments.length - 1; i >= -1 && !resolvedAbsolute; i--) {
+    var path = (i >= 0) ? arguments[i] : process.cwd();
+
+    // Skip empty and invalid entries
+    if (typeof path !== 'string') {
+      throw new TypeError('Arguments to path.resolve must be strings');
+    } else if (!path) {
+      continue;
+    }
+
+    resolvedPath = path + '/' + resolvedPath;
+    resolvedAbsolute = path.charAt(0) === '/';
+  }
+
+  // At this point the path should be resolved to a full absolute path, but
+  // handle relative paths to be safe (might happen when process.cwd() fails)
+
+  // Normalize the path
+  resolvedPath = normalizeArray(filter(resolvedPath.split('/'), function(p) {
+    return !!p;
+  }), !resolvedAbsolute).join('/');
+
+  return ((resolvedAbsolute ? '/' : '') + resolvedPath) || '.';
+};
+
+// path.normalize(path)
+// posix version
+exports.normalize = function(path) {
+  var isAbsolute = exports.isAbsolute(path),
+      trailingSlash = substr(path, -1) === '/';
+
+  // Normalize the path
+  path = normalizeArray(filter(path.split('/'), function(p) {
+    return !!p;
+  }), !isAbsolute).join('/');
+
+  if (!path && !isAbsolute) {
+    path = '.';
+  }
+  if (path && trailingSlash) {
+    path += '/';
+  }
+
+  return (isAbsolute ? '/' : '') + path;
+};
+
+// posix version
+exports.isAbsolute = function(path) {
+  return path.charAt(0) === '/';
+};
+
+// posix version
+exports.join = function() {
+  var paths = Array.prototype.slice.call(arguments, 0);
+  return exports.normalize(filter(paths, function(p, index) {
+    if (typeof p !== 'string') {
+      throw new TypeError('Arguments to path.join must be strings');
+    }
+    return p;
+  }).join('/'));
+};
+
+
+// path.relative(from, to)
+// posix version
+exports.relative = function(from, to) {
+  from = exports.resolve(from).substr(1);
+  to = exports.resolve(to).substr(1);
+
+  function trim(arr) {
+    var start = 0;
+    for (; start < arr.length; start++) {
+      if (arr[start] !== '') break;
+    }
+
+    var end = arr.length - 1;
+    for (; end >= 0; end--) {
+      if (arr[end] !== '') break;
+    }
+
+    if (start > end) return [];
+    return arr.slice(start, end - start + 1);
+  }
+
+  var fromParts = trim(from.split('/'));
+  var toParts = trim(to.split('/'));
+
+  var length = Math.min(fromParts.length, toParts.length);
+  var samePartsLength = length;
+  for (var i = 0; i < length; i++) {
+    if (fromParts[i] !== toParts[i]) {
+      samePartsLength = i;
+      break;
+    }
+  }
+
+  var outputParts = [];
+  for (var i = samePartsLength; i < fromParts.length; i++) {
+    outputParts.push('..');
+  }
+
+  outputParts = outputParts.concat(toParts.slice(samePartsLength));
+
+  return outputParts.join('/');
+};
+
+exports.sep = '/';
+exports.delimiter = ':';
+
+exports.dirname = function(path) {
+  var result = splitPath(path),
+      root = result[0],
+      dir = result[1];
+
+  if (!root && !dir) {
+    // No dirname whatsoever
+    return '.';
+  }
+
+  if (dir) {
+    // It has a dirname, strip trailing slash
+    dir = dir.substr(0, dir.length - 1);
+  }
+
+  return root + dir;
+};
+
+
+exports.basename = function(path, ext) {
+  var f = splitPath(path)[2];
+  // TODO: make this comparison case-insensitive on windows?
+  if (ext && f.substr(-1 * ext.length) === ext) {
+    f = f.substr(0, f.length - ext.length);
+  }
+  return f;
+};
+
+
+exports.extname = function(path) {
+  return splitPath(path)[3];
+};
+
+function filter (xs, f) {
+    if (xs.filter) return xs.filter(f);
+    var res = [];
+    for (var i = 0; i < xs.length; i++) {
+        if (f(xs[i], i, xs)) res.push(xs[i]);
+    }
+    return res;
+}
+
+// String.prototype.substr - negative index don't work in IE8
+var substr = 'ab'.substr(-1) === 'b'
+    ? function (str, start, len) { return str.substr(start, len) }
+    : function (str, start, len) {
+        if (start < 0) start = str.length + start;
+        return str.substr(start, len);
+    }
+;
+
+}).call(this,require('_process'))
+},{"_process":8}],8:[function(require,module,exports){
 // shim for using process in browser
 
 var process = module.exports = {};
@@ -422,302 +657,73 @@ process.chdir = function (dir) {
 };
 process.umask = function() { return 0; };
 
-},{}],8:[function(require,module,exports){
+},{}],9:[function(require,module,exports){
 (function (process){
 module.exports = !!(typeof process != 'undefined' && process.versions && process.versions.node);
 
 }).call(this,require('_process'))
-},{"_process":7}],9:[function(require,module,exports){
-module.exports = function (args, opts) {
-    if (!opts) opts = {};
-    
-    var flags = { bools : {}, strings : {}, unknownFn: null };
+},{"_process":8}],10:[function(require,module,exports){
+/**
+ * Export `findpath` function to get the platform dependant path of the `nodewebkit` binary
+ */
+module.exports.findpath = require('./lib/findpath.js');
+},{"./lib/findpath.js":11}],11:[function(require,module,exports){
+(function (process,__dirname){
+var fs = require('fs');
+var path = require('path');
+var bindir = path.resolve(__dirname, '..', 'nwjs');
 
-    if (typeof opts['unknown'] === 'function') {
-        flags.unknownFn = opts['unknown'];
-    }
-
-    if (typeof opts['boolean'] === 'boolean' && opts['boolean']) {
-      flags.allBools = true;
+module.exports = function() {
+  var bin = bindir;
+  if (process.platform === 'darwin') {
+    if (fs.existsSync(path.join(bin, 'Contents'))) {
+      bin = path.join(bin, 'Contents', 'MacOS', 'nwjs');
     } else {
-      [].concat(opts['boolean']).filter(Boolean).forEach(function (key) {
-          flags.bools[key] = true;
-      });
+      bin = path.join(bin, 'nwjs.app', 'Contents', 'MacOS', 'nwjs');
     }
-    
-    var aliases = {};
-    Object.keys(opts.alias || {}).forEach(function (key) {
-        aliases[key] = [].concat(opts.alias[key]);
-        aliases[key].forEach(function (x) {
-            aliases[x] = [key].concat(aliases[key].filter(function (y) {
-                return x !== y;
-            }));
-        });
-    });
-
-    [].concat(opts.string).filter(Boolean).forEach(function (key) {
-        flags.strings[key] = true;
-        if (aliases[key]) {
-            flags.strings[aliases[key]] = true;
-        }
-     });
-
-    var defaults = opts['default'] || {};
-    
-    var argv = { _ : [] };
-    Object.keys(flags.bools).forEach(function (key) {
-        setArg(key, defaults[key] === undefined ? false : defaults[key]);
-    });
-    
-    var notFlags = [];
-
-    if (args.indexOf('--') !== -1) {
-        notFlags = args.slice(args.indexOf('--')+1);
-        args = args.slice(0, args.indexOf('--'));
-    }
-
-    function argDefined(key, arg) {
-        return (flags.allBools && /^--[^=]+$/.test(arg)) ||
-            flags.strings[key] || flags.bools[key] || aliases[key];
-    }
-
-    function setArg (key, val, arg) {
-        if (arg && flags.unknownFn && !argDefined(key, arg)) {
-            if (flags.unknownFn(arg) === false) return;
-        }
-
-        var value = !flags.strings[key] && isNumber(val)
-            ? Number(val) : val
-        ;
-        setKey(argv, key.split('.'), value);
-        
-        (aliases[key] || []).forEach(function (x) {
-            setKey(argv, x.split('.'), value);
-        });
-    }
-
-    function setKey (obj, keys, value) {
-        var o = obj;
-        keys.slice(0,-1).forEach(function (key) {
-            if (o[key] === undefined) o[key] = {};
-            o = o[key];
-        });
-
-        var key = keys[keys.length - 1];
-        if (o[key] === undefined || flags.bools[key] || typeof o[key] === 'boolean') {
-            o[key] = value;
-        }
-        else if (Array.isArray(o[key])) {
-            o[key].push(value);
-        }
-        else {
-            o[key] = [ o[key], value ];
-        }
-    }
-    
-    function aliasIsBoolean(key) {
-      return aliases[key].some(function (x) {
-          return flags.bools[x];
-      });
-    }
-
-    for (var i = 0; i < args.length; i++) {
-        var arg = args[i];
-        
-        if (/^--.+=/.test(arg)) {
-            // Using [\s\S] instead of . because js doesn't support the
-            // 'dotall' regex modifier. See:
-            // http://stackoverflow.com/a/1068308/13216
-            var m = arg.match(/^--([^=]+)=([\s\S]*)$/);
-            var key = m[1];
-            var value = m[2];
-            if (flags.bools[key]) {
-                value = value !== 'false';
-            }
-            setArg(key, value, arg);
-        }
-        else if (/^--no-.+/.test(arg)) {
-            var key = arg.match(/^--no-(.+)/)[1];
-            setArg(key, false, arg);
-        }
-        else if (/^--.+/.test(arg)) {
-            var key = arg.match(/^--(.+)/)[1];
-            var next = args[i + 1];
-            if (next !== undefined && !/^-/.test(next)
-            && !flags.bools[key]
-            && !flags.allBools
-            && (aliases[key] ? !aliasIsBoolean(key) : true)) {
-                setArg(key, next, arg);
-                i++;
-            }
-            else if (/^(true|false)$/.test(next)) {
-                setArg(key, next === 'true', arg);
-                i++;
-            }
-            else {
-                setArg(key, flags.strings[key] ? '' : true, arg);
-            }
-        }
-        else if (/^-[^-]+/.test(arg)) {
-            var letters = arg.slice(1,-1).split('');
-            
-            var broken = false;
-            for (var j = 0; j < letters.length; j++) {
-                var next = arg.slice(j+2);
-                
-                if (next === '-') {
-                    setArg(letters[j], next, arg)
-                    continue;
-                }
-                
-                if (/[A-Za-z]/.test(letters[j]) && /=/.test(next)) {
-                    setArg(letters[j], next.split('=')[1], arg);
-                    broken = true;
-                    break;
-                }
-                
-                if (/[A-Za-z]/.test(letters[j])
-                && /-?\d+(\.\d*)?(e-?\d+)?$/.test(next)) {
-                    setArg(letters[j], next, arg);
-                    broken = true;
-                    break;
-                }
-                
-                if (letters[j+1] && letters[j+1].match(/\W/)) {
-                    setArg(letters[j], arg.slice(j+2), arg);
-                    broken = true;
-                    break;
-                }
-                else {
-                    setArg(letters[j], flags.strings[letters[j]] ? '' : true, arg);
-                }
-            }
-            
-            var key = arg.slice(-1)[0];
-            if (!broken && key !== '-') {
-                if (args[i+1] && !/^(-|--)[^-]/.test(args[i+1])
-                && !flags.bools[key]
-                && (aliases[key] ? !aliasIsBoolean(key) : true)) {
-                    setArg(key, args[i+1], arg);
-                    i++;
-                }
-                else if (args[i+1] && /true|false/.test(args[i+1])) {
-                    setArg(key, args[i+1] === 'true', arg);
-                    i++;
-                }
-                else {
-                    setArg(key, flags.strings[key] ? '' : true, arg);
-                }
-            }
-        }
-        else {
-            if (!flags.unknownFn || flags.unknownFn(arg) !== false) {
-                argv._.push(
-                    flags.strings['_'] || !isNumber(arg) ? arg : Number(arg)
-                );
-            }
-            if (opts.stopEarly) {
-                argv._.push.apply(argv._, args.slice(i + 1));
-                break;
-            }
-        }
-    }
-    
-    Object.keys(defaults).forEach(function (key) {
-        if (!hasKey(argv, key.split('.'))) {
-            setKey(argv, key.split('.'), defaults[key]);
-            
-            (aliases[key] || []).forEach(function (x) {
-                setKey(argv, x.split('.'), defaults[key]);
-            });
-        }
-    });
-    
-    if (opts['--']) {
-        argv['--'] = new Array();
-        notFlags.forEach(function(key) {
-            argv['--'].push(key);
-        });
-    }
-    else {
-        notFlags.forEach(function(key) {
-            argv._.push(key);
-        });
-    }
-
-    return argv;
-};
-
-function hasKey (obj, keys) {
-    var o = obj;
-    keys.slice(0,-1).forEach(function (key) {
-        o = (o[key] || {});
-    });
-
-    var key = keys[keys.length - 1];
-    return key in o;
+  } else if (process.platform === 'win32') {
+    bin = path.join(bin, 'nw.exe');
+  } else {
+    bin = path.join(bin, 'nw');
+  }
+  return bin;
 }
 
-function isNumber (x) {
-    if (typeof x === 'number') return true;
-    if (/^0x[0-9a-f]+$/i.test(x)) return true;
-    return /^[-+]?(?:\d+(?:\.\d*)?|\.\d+)(e[-+]?\d+)?$/.test(x);
-}
-
-
-},{}],10:[function(require,module,exports){
-var Rom, isNode, readFile;
-
-isNode = require('is-node');
-
-readFile = require('fs').readFile;
+}).call(this,require('_process'),"/node_modules/nw/lib")
+},{"_process":8,"fs":6,"path":7}],12:[function(require,module,exports){
+var Rom;
 
 Rom = function(dropZone) {
-  if (!isNode) {
-    this.dropZone = dropZone;
-  }
+  this.dropZone = dropZone;
 };
 
 Rom.prototype = {
-  read: function(src, callback) {
-    if (arguments.length === 1 && !isNode) {
-      callback = src;
-    }
-    if (isNode) {
-      return readFile(src, function(err, data) {
-        if (err) {
-          return callback(err);
-        } else {
-          return callback(null, data);
-        }
-      });
-    } else {
-      this.handleFileSelect = function(event) {
-        var file, reader;
-        event.stopPropagation();
-        event.preventDefault();
-        file = event.dataTransfer.files[0];
-        reader = new FileReader();
-        reader.readAsArrayBuffer(file);
-        reader.onload = function(event) {
-          return callback(null, new Uint8Array(this.result));
-        };
-        return reader.onerror = function(event) {
-          return callback(event);
-        };
+  read: function(callback) {
+    this.handleFileSelect = function(event) {
+      var file, reader;
+      event.stopPropagation();
+      event.preventDefault();
+      file = event.dataTransfer.files[0];
+      reader = new FileReader();
+      reader.readAsArrayBuffer(file);
+      reader.onload = function(event) {
+        return callback(null, new Uint8Array(this.result));
       };
-      this.handleDragOver = function(event) {
-        event.stopPropagation();
-        event.preventDefault();
-        return event.dataTransfer.dropEffect = 'copy';
+      return reader.onerror = function(event) {
+        return callback(event);
       };
-      this.dropZone.addEventListener('dragover', this.handleDragOver, false);
-      return this.dropZone.addEventListener('drop', this.handleFileSelect, false);
-    }
+    };
+    this.handleDragOver = function(event) {
+      event.stopPropagation();
+      event.preventDefault();
+      return event.dataTransfer.dropEffect = 'copy';
+    };
+    this.dropZone.addEventListener('dragover', this.handleDragOver, false);
+    return this.dropZone.addEventListener('drop', this.handleFileSelect, false);
   }
 };
 
 module.exports = Rom;
 
 
-},{"fs":6,"is-node":8}]},{},[1]);
+},{}]},{},[1]);

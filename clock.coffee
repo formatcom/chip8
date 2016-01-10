@@ -2,12 +2,13 @@ Clock = ->
 
 Clock.prototype =
   cycle: (cycle) -> @cycle = cycle
-  getRequestAnimationFrame: ->
+  getRequestAnimationFrame: (interval) ->
     requestAnimationFrame       ||
     webkitRequestAnimationFrame ||
     mozRequestAnimationFrame    ||
     oRequestAnimationFrame      ||
-    msRequestAnimationFrame
+    msRequestAnimationFrame     ||
+    (callback) -> setTimeout(interval, callback)
   start: ->
     animationFrame = @getRequestAnimationFrame()
     self = @
