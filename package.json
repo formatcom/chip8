@@ -4,7 +4,7 @@
   "description": "emulator chip-8",
   "main": "index.coffee",
   "scripts": {
-    "build": "mkdir -p dist && browserify --ignore canvas --transform coffeeify --extension=coffee chip8.coffee > dist/chip8.js && jade index.jade --pretty --out dist",
+    "build": "mkdir -p dist && browserify --transform coffeeify --extension=coffee chip8.coffee > dist/chip8.js && jade index.jade --pretty --out dist",
     "start": "nw ./dist",
     "server": "cd dist && python -m SimpleHTTPServer 8080",
     "clean": "rm -rf dist *.log",
