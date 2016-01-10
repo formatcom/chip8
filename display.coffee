@@ -1,7 +1,7 @@
 isNode = require 'is-node'
 Canvas = require 'canvas'
 
-Graphics = (width, height, exp=1) ->
+Display = (width, height, exp=1) ->
   if !isNode
     @element = document.createElement 'canvas'
     @element.width  = width*exp
@@ -16,13 +16,14 @@ Graphics = (width, height, exp=1) ->
   @ctx.fillRect 0, 0, @element.width, @element.height
   return
 
-Graphics.prototype =
+Display.prototype =
   clear: -> @ctx.clearRect 0, 0, @canvas.width, @canvas.height
   render: (screen) ->
     {ctx, width, exp} = @
     for px, index in screen
       x = (index % width) * exp
       y = ((index / width) | 0) * exp
+      if px is 1 then ctx.fillStyle = '#000' else ctx.fillStyle = '#FFF'
       ctx.fillRect x, y, exp, exp
-
-module.exports = Graphics
+      
+module.exports = Display

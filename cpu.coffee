@@ -1,5 +1,5 @@
 # Emulator CHIP-8
-decToHex = require './decToHex'
+decTo = require './decTo'
 
 Cpu = ->
   ram  = new ArrayBuffer 0xFFF # 4kb
@@ -9,15 +9,15 @@ Cpu = ->
 
   @i = 0 # 16bit 
 
-  @delay = 0 # 8bit
-  @timer = 0 # 8bit
+  @dt = 0 # 8bit
+  @st = 0 # 8bit
 
   @pc = 0x200 # 16bit
 
   @stack = new Uint16Array 16
   @sp = 0 # 8bit
 
-  @screen   = [64*32]
+  @screen    = new Array(64*32)
   @hexChars = [
     0xF0, 0x90, 0x90, 0x90, 0xF0 # 0
     0x20, 0x60, 0x20, 0x20, 0x70 # 1
@@ -41,52 +41,69 @@ Cpu = ->
   return
 
 # Instructions Chip8
-NULL = -> console.log "NULL->Instruction: #{decToHex(@opcode)}"
+NULL = -> console.log "NULL->Instruction: #{decTo.hex(@opcode)}"
 CLS_RET = ->
   {kk} = @
   if kk == 0xE0
-    console.log "FAIL->Instruction: #{decToHex(@opcode)}"
-  else if kk == 0xEE
-    console.log "00EE->Instruction: #{decToHex(@opcode)}"
+    console.log "0xE0->Instruction: #{decTo.hex(@opcode)}"
     @screen = @screen.map (px) -> 0
+  else if kk == 0xEE
+    console.log "00EE->Instruction: #{decTo.hex(@opcode)}"
+    @pc = @stack[--@sp & 0xF]
 CALL_addr = ->
-  console.log "2NNN->Instruction: CALL addr #{decToHex(@opcode)}"
-  @stack[@sp++] = @pc
+  console.log "2NNN->Instruction: CALL addr #{decTo.hex(@opcode)}"
+  @stack[@sp++ & 0xF] = @pc
   @pc = @nnn
 LD_Vx_byte = ->
-  console.log "6XKK->Instruction: LD Vx, byte #{decToHex(@opcode)}"
+  console.log "6XKK->Instruction: LD Vx, byte #{decTo.hex(@opcode)}"
   @v[@x] = @kk
 ADD_Vx_byte = ->
-  console.log "7XKK->Instruction: ADD Vx, byte #{decToHex(@opcode)}"
+  console.log "7XKK->Instruction: ADD Vx, byte #{decTo.hex(@opcode)}"
   @v[@x] += @kk
+LD_Vx_Vy = ->
+  console.log "8XY0->Instruction: LD Vx, Vy #{decTo.hex(@opcode)}"
+  @v[@x] = @v[@y]
 ARITHMETIC = -> @arithmetic[@n].call @
 LD_I_addr = ->
-  console.log "ANNN->Instruction: LD I, addr #{decToHex(@opcode)}"
+  console.log "ANNN->Instruction: LD I, addr #{decTo.hex(@opcode)}"
   @i = @nnn
 DRW_Vx_Vy_nibble = ->
-  console.log "FAIL->Instruction: DRW Vx, Vy, nibble #{decToHex(@opcode)}"
+  console.log "DXYN->Instruction: DRW Vx, Vy, nibble #{decTo.hex(@opcode)}"
+  {v, x, y, n, i, ram} = @
+  @v[0xF] = 0
+  console.groupCollapsed 'DRW'
+  for address in [0..n-1]
+    sprite = ram[address+i]
+    console.log decTo.bin(sprite)
+    for index in [0..7]
+      sx  = (v[x] + index)   & 63
+      sy  = (v[y] + address) & 31
+      pos = 64 * sy + sx
+      px  = (sprite & (1 << (7-index))) != 0
+      @v[0xF] |= @screen[pos] & px
+      @screen[pos] ^= px
+  console.groupEnd()
+
 CPU_Extra = -> @extra[@y].call @
 LD_F_Vx = ->
-  console.log "FX29->Instruction: LD F, Vx #{decToHex(@opcode)}"
+  console.log "FX29->Instruction: LD F, Vx #{decTo.hex(@opcode)}"
   @i = @v[@x] * 5
 LD_B_Vx = ->
-  console.log "FX33->Instruction: LD B, Vx #{decToHex(@opcode)}"
-  @ram[@i]   = @x/100
-  @ram[@i+1] = (@x/10)%10
-  @ram[@i+2] = @x%10
+  console.log "FX33->Instruction: LD B, Vx #{decTo.hex(@opcode)}"
+  @ram[@i]   = @v[@x]/100
+  @ram[@i+1] = (@v[@x]/10)%10
+  @ram[@i+2] = @v[@x]%10
 LD_Vx_I = ->
-  console.log "FX65->Instruction: LD Vx, [I] #{decToHex(@opcode)}"
-  @v[address] = @ram[@i] for address in [0..@x]
-LD_Vx_Vy = ->
-  console.log "8XY0->Instruction: LD Vx, Vy #{decToHex(@opcode)}"
-  @v[@x] = @v[@y]
+  console.log "FX65->Instruction: LD Vx, [I] #{decTo.hex(@opcode)}"
+  @v[address] = @ram[@i+address] for address in [0..@x]
 
 Cpu.prototype =
   init: ->
     @ram = @ram.map (byte) -> 0
+    @screen = @screen.map (px) -> 0
     @v = @v.map (byte) -> 0
     @stack = @stack.map (_2bytes) -> 0
-    @i  = @delay = @timer = @sp = 0
+    @i  = @dt = @st = @sp = 0
     @pc = 0x200
     @ram[address] = byte for byte, address in @hexChars
       
@@ -96,7 +113,8 @@ Cpu.prototype =
   ]
 
   extra: [
-    NULL, NULL, LD_F_Vx, LD_B_Vx, NULL, NULL, LD_Vx_I
+    NULL, NULL, LD_F_Vx, LD_B_Vx, NULL, NULL, LD_Vx_I, NULL
+    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
   ]
 
   arithmetic: [
@@ -109,8 +127,8 @@ Cpu.prototype =
   fetch: ->
     {ram, pc} = @
     @opcode = (ram[pc]<<8) + ram[pc+1] # 16bit
-    @pc += 2
-
+    @pc +=2
+    
   execute: ->
     @fetch()
     address = (@opcode&0xF000)>>12
@@ -120,8 +138,8 @@ Cpu.prototype =
     @n   =  @kk&0x0F
     @x   = (@nnn&0xF00) >> 8
     @y   = (@nnn&0x0F0) >> 4
+
     
     @table[address].call @
 
 module.exports = Cpu
-
