@@ -1,4 +1,6 @@
 # Emulator CHIP-8
+require 'polyfill.js'
+
 decTo = require './decTo'
 
 Cpu = (display) ->
