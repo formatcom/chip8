@@ -37,7 +37,7 @@ rom.read(function(err, data) {
 });
 
 
-},{"./clock":2,"./cpu":3,"./display":5,"./rom":12,"is-node":9,"nw":10}],2:[function(require,module,exports){
+},{"./clock":2,"./cpu":3,"./display":5,"./rom":13,"is-node":9,"nw":10}],2:[function(require,module,exports){
 var Clock;
 
 Clock = function() {};
@@ -68,6 +68,8 @@ module.exports = Clock;
 
 },{}],3:[function(require,module,exports){
 var ADD_Vx_byte, ARITHMETIC, CALL_addr, CLS_RET, CPU_Extra, Cpu, DRW_Vx_Vy_nibble, FX15_18_1E, LD_B_Vx, LD_F_Vx, LD_I_addr, LD_Vx_DT, LD_Vx_I, LD_Vx_Vy, LD_Vx_byte, NULL, decTo;
+
+require('./polyfill.js');
 
 decTo = require('./decTo');
 
@@ -267,7 +269,7 @@ Cpu.prototype = {
 module.exports = Cpu;
 
 
-},{"./decTo":4}],4:[function(require,module,exports){
+},{"./decTo":4,"./polyfill.js":12}],4:[function(require,module,exports){
 module.exports = {
   bin: function(dec, base) {
     if (base == null) {
@@ -691,6 +693,38 @@ module.exports = function() {
 
 }).call(this,require('_process'),"/node_modules/nw/lib")
 },{"_process":8,"fs":6,"path":7}],12:[function(require,module,exports){
+// based loosely on Kris Kowal's es-5shim.js
+// https://github.com/kriskowal/es5-shim/blob/master/es5-shim.js#L204
+//
+// due to space constraints, this version does not check function type or cast length to a number
+
+var map = function(a){
+  for (
+    var b = this      // cache `this` and
+      , c = b.length  // the array's length,
+      , d = []        // create the return array
+      , e = 0         // and initialize the cursor,
+      , f             // and cache undefined.
+      ; e < b;        // while the cursor is less than the length
+  ) d[e] =            // set the result member
+    e in b            // if it originally exists,
+      ? a.call(       // to the given function, called with
+        arguments[1], // the optional scope,
+        b[e],         // existing member,
+        e++,          // member index, and
+        b )           // current scope,
+      : f;            // or to undefined otherwise.
+    return d          // return the result.
+};
+
+
+if ([].map){
+  Array.prototype.map = map;
+  Uint8Array.prototype.map = map;
+  Uint16Array.prototype.map = map;
+}
+
+},{}],13:[function(require,module,exports){
 var Rom;
 
 Rom = function(dropZone) {

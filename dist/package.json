@@ -1,0 +1,11 @@
+{
+  "name": "chip-8",
+  "main": "index.html",
+  "author": "Vinicio Valbuena (FormatCom)",
+  "window": {
+    "toolbar": false,
+    "position": "center",
+    "width": 660,
+    "height": 340
+  }
+}

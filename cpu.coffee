@@ -1,5 +1,5 @@
 # Emulator CHIP-8
-require 'polyfill.js'
+require './polyfill.js'
 
 decTo = require './decTo'
 
