@@ -54,10 +54,16 @@ CLS_RET = ->
   else if kk == 0xEE
     console.log "00EE->Instruction: RET #{decTo.hex(@opcode)}"
     @pc = @stack[--@sp & 0xF]
+JP_addr = ->
+  console.log "1NNN->Instruction: JP addr #{decTo.hex(@opcode)}"
+  @pc = @nnn
 CALL_addr = ->
   console.log "2NNN->Instruction: CALL addr #{decTo.hex(@opcode)}"
   @stack[@sp++ & 0xF] = @pc
   @pc = @nnn
+SE_Vx_byte = ->
+  console.log "3xkk->Instruction: SE Vx, byte #{decTo.hex(@opcode)}"
+  if @v[@x] == @kk then @pc += 2
 LD_Vx_byte = ->
   console.log "6XKK->Instruction: LD Vx, byte #{decTo.hex(@opcode)}"
   @v[@x] = @kk
@@ -125,7 +131,7 @@ Cpu.prototype =
     @ram[address] = byte for byte, address in @hexChars
       
   table: [
-    CLS_RET, NULL, CALL_addr, NULL, NULL, NULL, LD_Vx_byte, ADD_Vx_byte
+    CLS_RET, JP_addr, CALL_addr, SE_Vx_byte, NULL, NULL, LD_Vx_byte, ADD_Vx_byte
     ARITHMETIC, NULL, LD_I_addr, NULL, NULL, DRW_Vx_Vy_nibble, NULL, CPU_Extra
   ]
 
