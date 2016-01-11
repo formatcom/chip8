@@ -353,7 +353,7 @@ module.exports = function() {
   return bin;
 }
 
-}).call(this,require('_process'),"/..\\node_modules\\nw\\lib")
+}).call(this,require('_process'),"/../node_modules/nw/lib")
 },{"_process":3,"fs":1,"path":2}],7:[function(require,module,exports){
 var Clock, Cpu, Display, Rom, clock, cpu, display, gui, isNode, rom;
 
@@ -425,7 +425,7 @@ module.exports = Clock;
 },{}],9:[function(require,module,exports){
 var ADD_Vx_byte, ARITHMETIC, CALL_addr, CLS_RET, CPU_Extra, Cpu, DRW_Vx_Vy_nibble, FX07_0A, FX15_18_1E, LD_B_Vx, LD_F_Vx, LD_I_addr, LD_Vx_I, LD_Vx_Vy, LD_Vx_byte, NULL, decTo;
 
-require('./polyfill.js');
+require('./polyfill');
 
 decTo = require('./decTo');
 
@@ -631,7 +631,7 @@ Cpu.prototype = {
 module.exports = Cpu;
 
 
-},{"./decTo":10,"./polyfill.js":12}],10:[function(require,module,exports){
+},{"./decTo":10,"./polyfill":12}],10:[function(require,module,exports){
 module.exports = {
   bin: function(dec, base) {
     if (base == null) {
@@ -699,36 +699,30 @@ module.exports = Display;
 
 
 },{}],12:[function(require,module,exports){
-// based loosely on Kris Kowal's es-5shim.js
-// https://github.com/kriskowal/es5-shim/blob/master/es5-shim.js#L204
-//
-// due to space constraints, this version does not check function type or cast length to a number
+var map,
+  indexOf = [].indexOf || function(item) { for (var i = 0, l = this.length; i < l; i++) { if (i in this && this[i] === item) return i; } return -1; };
 
-var map = function(a){
-  for (
-    var b = this      // cache `this` and
-      , c = b.length  // the array's length,
-      , d = []        // create the return array
-      , e = 0         // and initialize the cursor,
-      , f             // and cache undefined.
-      ; e < b;        // while the cursor is less than the length
-  ) d[e] =            // set the result member
-    e in b            // if it originally exists,
-      ? a.call(       // to the given function, called with
-        arguments[1], // the optional scope,
-        b[e],         // existing member,
-        e++,          // member index, and
-        b )           // current scope,
-      : f;            // or to undefined otherwise.
-    return d          // return the result.
+map = function(a) {
+  var b, d, e;
+  b = this;
+  d = [];
+  e = 0;
+  while (e < b) {
+    if (indexOf.call(b, e) >= 0) {
+      d[e] = call(arguments[1], b[e], e++, b);
+    } else {
+      d[e] = void 0;
+    }
+    return d;
+  }
 };
 
-
-if ([].map){
+if ([].map) {
   Array.prototype.map = map;
   Uint8Array.prototype.map = map;
   Uint16Array.prototype.map = map;
 }
+
 
 },{}],13:[function(require,module,exports){
 var Rom;

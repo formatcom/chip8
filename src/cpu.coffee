@@ -1,5 +1,5 @@
 # Emulator CHIP-8
-require './polyfill.js' # soport Array.prototype.map
+require './polyfill' # soport Array.prototype.map
 
 decTo = require './decTo'
 
