@@ -1,344 +1,6 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
-var Clock, Cpu, Display, Rom, clock, cpu, display, gui, isNode, rom;
 
-isNode = require('is-node');
-
-gui = require('nw').gui;
-
-Cpu = require('./cpu');
-
-Display = require('./display');
-
-Rom = require('./rom');
-
-Clock = require('./clock');
-
-display = new Display(64, 32, 10);
-
-cpu = new Cpu(display);
-
-rom = new Rom(display.element);
-
-clock = new Clock();
-
-document.body.appendChild(display.element);
-
-if (isNode) {
-  gui.Window.get().show();
-}
-
-rom.read(function(err, data) {
-  window.cpu = cpu;
-  cpu.load(data);
-  clock.cycle(function() {
-    return cpu.execute();
-  });
-  return clock.start();
-});
-
-
-},{"./clock":2,"./cpu":3,"./display":5,"./rom":13,"is-node":9,"nw":10}],2:[function(require,module,exports){
-var Clock;
-
-Clock = function() {};
-
-Clock.prototype = {
-  cycle: function(cycle) {
-    return this.cycle = cycle;
-  },
-  getRequestAnimationFrame: function(interval) {
-    return requestAnimationFrame || webkitRequestAnimationFrame || mozRequestAnimationFrame || oRequestAnimationFrame || msRequestAnimationFrame || function(callback) {
-      return setTimeout(interval, callback);
-    };
-  },
-  start: function() {
-    var _loop, animationFrame, self;
-    animationFrame = this.getRequestAnimationFrame();
-    self = this;
-    _loop = function() {
-      self.cycle();
-      return animationFrame(_loop);
-    };
-    return animationFrame(_loop);
-  }
-};
-
-module.exports = Clock;
-
-
-},{}],3:[function(require,module,exports){
-var ADD_Vx_byte, ARITHMETIC, CALL_addr, CLS_RET, CPU_Extra, Cpu, DRW_Vx_Vy_nibble, FX15_18_1E, LD_B_Vx, LD_F_Vx, LD_I_addr, LD_Vx_DT, LD_Vx_I, LD_Vx_Vy, LD_Vx_byte, NULL, decTo;
-
-require('./polyfill.js');
-
-decTo = require('./decTo');
-
-Cpu = function(display) {
-  var ram;
-  ram = new ArrayBuffer(0xFFF);
-  this.ram = new Uint8Array(ram);
-  this.v = new Uint8Array(16);
-  this.i = 0;
-  this.dt = 0;
-  this.st = 0;
-  this.pc = 0x200;
-  this.stack = new Uint16Array(16);
-  this.sp = 0;
-  this.display = display;
-  this.screen = new Array(64 * 32);
-  this.hexChars = [0xF0, 0x90, 0x90, 0x90, 0xF0, 0x20, 0x60, 0x20, 0x20, 0x70, 0xF0, 0x10, 0xF0, 0x80, 0xF0, 0xF0, 0x10, 0xF0, 0x10, 0xF0, 0x90, 0x90, 0xF0, 0x10, 0x10, 0xF0, 0x80, 0xF0, 0x10, 0xF0, 0xF0, 0x80, 0xF0, 0x90, 0xF0, 0xF0, 0x10, 0x20, 0x40, 0x40, 0xF0, 0x90, 0xF0, 0x90, 0xF0, 0xF0, 0x90, 0xF0, 0x10, 0xF0, 0xF0, 0x90, 0xF0, 0x90, 0x90, 0xE0, 0x90, 0xE0, 0x90, 0xE0, 0xF0, 0x80, 0x80, 0x80, 0xF0, 0xE0, 0x90, 0x90, 0x90, 0xE0, 0xF0, 0x80, 0xF0, 0x80, 0xF0, 0xF0, 0x80, 0xF0, 0x80, 0x80];
-  this.init();
-};
-
-NULL = function() {
-  return console.log("NULL->Instruction: " + (decTo.hex(this.opcode)));
-};
-
-CLS_RET = function() {
-  var kk;
-  kk = this.kk;
-  if (kk === 0xE0) {
-    console.log("0xE0->Instruction: CLS " + (decTo.hex(this.opcode)));
-    this.screen = this.screen.map(function(px) {
-      return 0;
-    });
-    return this.display.clear();
-  } else if (kk === 0xEE) {
-    console.log("00EE->Instruction: RET " + (decTo.hex(this.opcode)));
-    return this.pc = this.stack[--this.sp & 0xF];
-  }
-};
-
-CALL_addr = function() {
-  console.log("2NNN->Instruction: CALL addr " + (decTo.hex(this.opcode)));
-  this.stack[this.sp++ & 0xF] = this.pc;
-  return this.pc = this.nnn;
-};
-
-LD_Vx_byte = function() {
-  console.log("6XKK->Instruction: LD Vx, byte " + (decTo.hex(this.opcode)));
-  return this.v[this.x] = this.kk;
-};
-
-ADD_Vx_byte = function() {
-  console.log("7XKK->Instruction: ADD Vx, byte " + (decTo.hex(this.opcode)));
-  return this.v[this.x] += this.kk;
-};
-
-LD_Vx_Vy = function() {
-  console.log("8XY0->Instruction: LD Vx, Vy " + (decTo.hex(this.opcode)));
-  return this.v[this.x] = this.v[this.y];
-};
-
-ARITHMETIC = function() {
-  return this.arithmetic[this.n].call(this);
-};
-
-LD_I_addr = function() {
-  console.log("ANNN->Instruction: LD I, addr " + (decTo.hex(this.opcode)));
-  return this.i = this.nnn;
-};
-
-DRW_Vx_Vy_nibble = function() {
-  var address, i, index, j, k, n, pos, px, ram, ref, sprite, sx, sy, v, x, y;
-  console.log("DXYN->Instruction: DRW Vx, Vy, nibble " + (decTo.hex(this.opcode)));
-  v = this.v, x = this.x, y = this.y, n = this.n, i = this.i, ram = this.ram;
-  this.v[0xF] = 0;
-  for (address = j = 0, ref = n - 1; 0 <= ref ? j <= ref : j >= ref; address = 0 <= ref ? ++j : --j) {
-    sprite = ram[address + i];
-    for (index = k = 0; k <= 7; index = ++k) {
-      sx = (v[x] + index) & 63;
-      sy = (v[y] + address) & 31;
-      pos = 64 * sy + sx;
-      px = (sprite & (1 << (7 - index))) !== 0;
-      this.v[0xF] |= this.screen[pos] & px;
-      this.screen[pos] ^= px;
-    }
-  }
-  return this.display.render(this.screen);
-};
-
-CPU_Extra = function() {
-  return this.extra[this.y].call(this);
-};
-
-LD_Vx_DT = function() {
-  console.log("FX07->Instruction: LD Vx, DT " + (decTo.hex(this.opcode)));
-  return this.v[this.x] = this.dt;
-};
-
-FX15_18_1E = function() {
-  var kk;
-  kk = this.kk;
-  if (kk === 0x15) {
-    console.log("FX15->Instruction: LD DT, Vx " + (decTo.hex(this.opcode)));
-    return this.dt = this.v[this.x];
-  } else if (kk === 0x18) {
-    return console.log("FAIL->Instruction: LD ST, Vx " + (decTo.hex(this.opcode)));
-  } else if (kk === 0x1E) {
-    return console.log("FAIL->Instruction: ADD I, Vx " + (decTo.hex(this.opcode)));
-  }
-};
-
-LD_F_Vx = function() {
-  console.log("FX29->Instruction: LD F, Vx " + (decTo.hex(this.opcode)));
-  return this.i = this.v[this.x] * 5;
-};
-
-LD_B_Vx = function() {
-  console.log("FX33->Instruction: LD B, Vx " + (decTo.hex(this.opcode)));
-  this.ram[this.i] = this.v[this.x] / 100;
-  this.ram[this.i + 1] = (this.v[this.x] / 10) % 10;
-  return this.ram[this.i + 2] = this.v[this.x] % 10;
-};
-
-LD_Vx_I = function() {
-  var address, j, ref, results;
-  console.log("FX65->Instruction: LD Vx, [I] " + (decTo.hex(this.opcode)));
-  results = [];
-  for (address = j = 0, ref = this.x; 0 <= ref ? j <= ref : j >= ref; address = 0 <= ref ? ++j : --j) {
-    results.push(this.v[address] = this.ram[this.i + address]);
-  }
-  return results;
-};
-
-Cpu.prototype = {
-  init: function() {
-    var address, byte, j, len, ref, results;
-    this.ram = this.ram.map(function(byte) {
-      return 0;
-    });
-    this.screen = this.screen.map(function(px) {
-      return 0;
-    });
-    this.v = this.v.map(function(byte) {
-      return 0;
-    });
-    this.stack = this.stack.map(function(_2bytes) {
-      return 0;
-    });
-    this.i = this.dt = this.st = this.sp = 0;
-    this.pc = 0x200;
-    ref = this.hexChars;
-    results = [];
-    for (address = j = 0, len = ref.length; j < len; address = ++j) {
-      byte = ref[address];
-      results.push(this.ram[address] = byte);
-    }
-    return results;
-  },
-  table: [CLS_RET, NULL, CALL_addr, NULL, NULL, NULL, LD_Vx_byte, ADD_Vx_byte, ARITHMETIC, NULL, LD_I_addr, NULL, NULL, DRW_Vx_Vy_nibble, NULL, CPU_Extra],
-  extra: [NULL, FX15_18_1E, LD_F_Vx, LD_B_Vx, NULL, NULL, LD_Vx_I, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL],
-  arithmetic: [LD_Vx_Vy, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL],
-  load: function(rom) {
-    var address, byte, j, len, results;
-    results = [];
-    for (address = j = 0, len = rom.length; j < len; address = ++j) {
-      byte = rom[address];
-      results.push(this.ram[address + 0x200] = byte);
-    }
-    return results;
-  },
-  fetch: function() {
-    var pc, ram;
-    ram = this.ram, pc = this.pc;
-    this.opcode = (ram[pc] << 8) + ram[pc + 1];
-    return this.pc += 2;
-  },
-  execute: function() {
-    var address;
-    this.fetch();
-    address = (this.opcode & 0xF000) >> 12;
-    this.nnn = this.opcode & 0x0FFF;
-    this.kk = this.nnn & 0x0FF;
-    this.n = this.kk & 0x0F;
-    this.x = (this.nnn & 0xF00) >> 8;
-    this.y = (this.nnn & 0x0F0) >> 4;
-    this.table[address].call(this);
-    if (this.dt) {
-      this.dt = this.dt - 1;
-    }
-    if (this.st) {
-      if (--this.st === 0) {
-        return console.info('beep');
-      }
-    }
-  }
-};
-
-module.exports = Cpu;
-
-
-},{"./decTo":4,"./polyfill.js":12}],4:[function(require,module,exports){
-module.exports = {
-  bin: function(dec, base) {
-    if (base == null) {
-      base = 2;
-    }
-    return dec.toString(base);
-  },
-  oct: function(dec, base) {
-    if (base == null) {
-      base = 8;
-    }
-    return dec.toString(base);
-  },
-  hex: function(dec, base) {
-    if (base == null) {
-      base = 16;
-    }
-    return dec.toString(base).toUpperCase();
-  }
-};
-
-
-},{}],5:[function(require,module,exports){
-var Display;
-
-Display = function(width, height, exp) {
-  if (exp == null) {
-    exp = 1;
-  }
-  this.element = document.createElement('canvas');
-  this.element.width = width * exp;
-  this.element.height = height * exp;
-  this.ctx = this.element.getContext('2d');
-  this.width = width;
-  this.height = height;
-  this.exp = exp;
-  this.ctx.fillStyle = '#FFF';
-  this.ctx.fillRect(0, 0, this.element.width, this.element.height);
-};
-
-Display.prototype = {
-  clear: function() {
-    return this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-  },
-  render: function(screen) {
-    var ctx, exp, i, index, len, px, results, width, x, y;
-    ctx = this.ctx, width = this.width, exp = this.exp;
-    results = [];
-    for (index = i = 0, len = screen.length; i < len; index = ++i) {
-      px = screen[index];
-      x = (index % width) * exp;
-      y = ((index / width) | 0) * exp;
-      if (px === 1) {
-        ctx.fillStyle = '#000';
-      } else {
-        ctx.fillStyle = '#FFF';
-      }
-      results.push(ctx.fillRect(x, y, exp, exp));
-    }
-    return results;
-  }
-};
-
-module.exports = Display;
-
-
-},{}],6:[function(require,module,exports){
-
-},{}],7:[function(require,module,exports){
+},{}],2:[function(require,module,exports){
 (function (process){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -566,7 +228,7 @@ var substr = 'ab'.substr(-1) === 'b'
 ;
 
 }).call(this,require('_process'))
-},{"_process":8}],8:[function(require,module,exports){
+},{"_process":3}],3:[function(require,module,exports){
 // shim for using process in browser
 
 var process = module.exports = {};
@@ -659,17 +321,17 @@ process.chdir = function (dir) {
 };
 process.umask = function() { return 0; };
 
-},{}],9:[function(require,module,exports){
+},{}],4:[function(require,module,exports){
 (function (process){
 module.exports = !!(typeof process != 'undefined' && process.versions && process.versions.node);
 
 }).call(this,require('_process'))
-},{"_process":8}],10:[function(require,module,exports){
+},{"_process":3}],5:[function(require,module,exports){
 /**
  * Export `findpath` function to get the platform dependant path of the `nodewebkit` binary
  */
 module.exports.findpath = require('./lib/findpath.js');
-},{"./lib/findpath.js":11}],11:[function(require,module,exports){
+},{"./lib/findpath.js":6}],6:[function(require,module,exports){
 (function (process,__dirname){
 var fs = require('fs');
 var path = require('path');
@@ -691,8 +353,352 @@ module.exports = function() {
   return bin;
 }
 
-}).call(this,require('_process'),"/node_modules/nw/lib")
-},{"_process":8,"fs":6,"path":7}],12:[function(require,module,exports){
+}).call(this,require('_process'),"/../node_modules/nw/lib")
+},{"_process":3,"fs":1,"path":2}],7:[function(require,module,exports){
+var Clock, Cpu, Display, Rom, clock, cpu, display, gui, isNode, rom;
+
+isNode = require('is-node');
+
+gui = require('nw').gui;
+
+Cpu = require('./cpu');
+
+Display = require('./display');
+
+Rom = require('./rom');
+
+Clock = require('./clock');
+
+display = new Display(64, 32, 10);
+
+cpu = new Cpu(display);
+
+rom = new Rom(display.element);
+
+clock = new Clock();
+
+document.body.appendChild(display.element);
+
+if (isNode) {
+  gui.Window.get().show();
+}
+
+rom.read(function(err, data) {
+  window.cpu = cpu;
+  cpu.load(data);
+  clock.cycle(function() {
+    return cpu.execute();
+  });
+  return clock.start();
+});
+
+
+},{"./clock":8,"./cpu":9,"./display":11,"./rom":13,"is-node":4,"nw":5}],8:[function(require,module,exports){
+var Clock;
+
+Clock = function() {};
+
+Clock.prototype = {
+  cycle: function(cycle) {
+    return this.cycle = cycle;
+  },
+  getRequestAnimationFrame: function(interval) {
+    return requestAnimationFrame || webkitRequestAnimationFrame || mozRequestAnimationFrame || oRequestAnimationFrame || msRequestAnimationFrame || function(callback) {
+      return setTimeout(interval, callback);
+    };
+  },
+  start: function() {
+    var _loop, animationFrame, self;
+    animationFrame = this.getRequestAnimationFrame();
+    self = this;
+    _loop = function() {
+      self.cycle();
+      return animationFrame(_loop);
+    };
+    return animationFrame(_loop);
+  }
+};
+
+module.exports = Clock;
+
+
+},{}],9:[function(require,module,exports){
+var ADD_Vx_byte, ARITHMETIC, CALL_addr, CLS_RET, CPU_Extra, Cpu, DRW_Vx_Vy_nibble, FX07_0A, FX15_18_1E, LD_B_Vx, LD_F_Vx, LD_I_addr, LD_Vx_I, LD_Vx_Vy, LD_Vx_byte, NULL, decTo;
+
+require('./polyfill.js');
+
+decTo = require('./decTo');
+
+Cpu = function(display) {
+  var ram;
+  ram = new ArrayBuffer(0xFFF);
+  this.ram = new Uint8Array(ram);
+  this.v = new Uint8Array(16);
+  this.i = 0;
+  this.dt = 0;
+  this.st = 0;
+  this.pc = 0x200;
+  this.stack = new Uint16Array(16);
+  this.sp = 0;
+  this.display = display;
+  this.screen = new Array(64 * 32);
+  this.hexChars = [0xF0, 0x90, 0x90, 0x90, 0xF0, 0x20, 0x60, 0x20, 0x20, 0x70, 0xF0, 0x10, 0xF0, 0x80, 0xF0, 0xF0, 0x10, 0xF0, 0x10, 0xF0, 0x90, 0x90, 0xF0, 0x10, 0x10, 0xF0, 0x80, 0xF0, 0x10, 0xF0, 0xF0, 0x80, 0xF0, 0x90, 0xF0, 0xF0, 0x10, 0x20, 0x40, 0x40, 0xF0, 0x90, 0xF0, 0x90, 0xF0, 0xF0, 0x90, 0xF0, 0x10, 0xF0, 0xF0, 0x90, 0xF0, 0x90, 0x90, 0xE0, 0x90, 0xE0, 0x90, 0xE0, 0xF0, 0x80, 0x80, 0x80, 0xF0, 0xE0, 0x90, 0x90, 0x90, 0xE0, 0xF0, 0x80, 0xF0, 0x80, 0xF0, 0xF0, 0x80, 0xF0, 0x80, 0x80];
+  this.init();
+};
+
+NULL = function() {
+  return console.log("NULL->Instruction: " + (decTo.hex(this.opcode)));
+};
+
+CLS_RET = function() {
+  var kk;
+  kk = this.kk;
+  if (kk === 0xE0) {
+    console.log("0xE0->Instruction: CLS " + (decTo.hex(this.opcode)));
+    this.screen = this.screen.map(function(px) {
+      return 0;
+    });
+    return this.display.clear();
+  } else if (kk === 0xEE) {
+    console.log("00EE->Instruction: RET " + (decTo.hex(this.opcode)));
+    return this.pc = this.stack[--this.sp & 0xF];
+  }
+};
+
+CALL_addr = function() {
+  console.log("2NNN->Instruction: CALL addr " + (decTo.hex(this.opcode)));
+  this.stack[this.sp++ & 0xF] = this.pc;
+  return this.pc = this.nnn;
+};
+
+LD_Vx_byte = function() {
+  console.log("6XKK->Instruction: LD Vx, byte " + (decTo.hex(this.opcode)));
+  return this.v[this.x] = this.kk;
+};
+
+ADD_Vx_byte = function() {
+  console.log("7XKK->Instruction: ADD Vx, byte " + (decTo.hex(this.opcode)));
+  return this.v[this.x] += this.kk;
+};
+
+LD_Vx_Vy = function() {
+  console.log("8XY0->Instruction: LD Vx, Vy " + (decTo.hex(this.opcode)));
+  return this.v[this.x] = this.v[this.y];
+};
+
+ARITHMETIC = function() {
+  return this.arithmetic[this.n].call(this);
+};
+
+LD_I_addr = function() {
+  console.log("ANNN->Instruction: LD I, addr " + (decTo.hex(this.opcode)));
+  return this.i = this.nnn;
+};
+
+DRW_Vx_Vy_nibble = function() {
+  var address, i, index, j, k, n, pos, px, ram, ref, sprite, sx, sy, v, x, y;
+  console.log("DXYN->Instruction: DRW Vx, Vy, nibble " + (decTo.hex(this.opcode)));
+  v = this.v, x = this.x, y = this.y, n = this.n, i = this.i, ram = this.ram;
+  this.v[0xF] = 0;
+  for (address = j = 0, ref = n - 1; 0 <= ref ? j <= ref : j >= ref; address = 0 <= ref ? ++j : --j) {
+    sprite = ram[address + i];
+    for (index = k = 0; k <= 7; index = ++k) {
+      sx = (v[x] + index) & 63;
+      sy = (v[y] + address) & 31;
+      pos = 64 * sy + sx;
+      px = (sprite & (1 << (7 - index))) !== 0;
+      this.v[0xF] |= this.screen[pos] & px;
+      this.screen[pos] ^= px;
+    }
+  }
+  return this.display.render(this.screen);
+};
+
+CPU_Extra = function() {
+  return this.extra[this.y].call(this);
+};
+
+FX07_0A = function() {
+  var dt, kk, x;
+  kk = this.kk, dt = this.dt, x = this.x;
+  if (kk === 0x07) {
+    console.log("FX07->Instruction: LD Vx, DT " + (decTo.hex(this.opcode)));
+    return this.v[x] = dt;
+  } else if (kk === 0x0A) {
+    return console.log("FAIL->Instruction: LD Vx, K " + (decTo.hex(this.opcode)));
+  }
+};
+
+FX15_18_1E = function() {
+  var kk;
+  kk = this.kk;
+  if (kk === 0x15) {
+    console.log("FX15->Instruction: LD DT, Vx " + (decTo.hex(this.opcode)));
+    return this.dt = this.v[this.x];
+  } else if (kk === 0x18) {
+    return console.log("FAIL->Instruction: LD ST, Vx " + (decTo.hex(this.opcode)));
+  } else if (kk === 0x1E) {
+    return console.log("FAIL->Instruction: ADD I, Vx " + (decTo.hex(this.opcode)));
+  }
+};
+
+LD_F_Vx = function() {
+  console.log("FX29->Instruction: LD F, Vx " + (decTo.hex(this.opcode)));
+  return this.i = this.v[this.x] * 5;
+};
+
+LD_B_Vx = function() {
+  console.log("FX33->Instruction: LD B, Vx " + (decTo.hex(this.opcode)));
+  this.ram[this.i] = this.v[this.x] / 100;
+  this.ram[this.i + 1] = (this.v[this.x] / 10) % 10;
+  return this.ram[this.i + 2] = this.v[this.x] % 10;
+};
+
+LD_Vx_I = function() {
+  var address, j, ref, results;
+  console.log("FX65->Instruction: LD Vx, [I] " + (decTo.hex(this.opcode)));
+  results = [];
+  for (address = j = 0, ref = this.x; 0 <= ref ? j <= ref : j >= ref; address = 0 <= ref ? ++j : --j) {
+    results.push(this.v[address] = this.ram[this.i + address]);
+  }
+  return results;
+};
+
+Cpu.prototype = {
+  init: function() {
+    var address, byte, j, len, ref, results;
+    this.ram = this.ram.map(function(byte) {
+      return 0;
+    });
+    this.screen = this.screen.map(function(px) {
+      return 0;
+    });
+    this.v = this.v.map(function(byte) {
+      return 0;
+    });
+    this.stack = this.stack.map(function(_2bytes) {
+      return 0;
+    });
+    this.i = this.dt = this.st = this.sp = 0;
+    this.pc = 0x200;
+    ref = this.hexChars;
+    results = [];
+    for (address = j = 0, len = ref.length; j < len; address = ++j) {
+      byte = ref[address];
+      results.push(this.ram[address] = byte);
+    }
+    return results;
+  },
+  table: [CLS_RET, NULL, CALL_addr, NULL, NULL, NULL, LD_Vx_byte, ADD_Vx_byte, ARITHMETIC, NULL, LD_I_addr, NULL, NULL, DRW_Vx_Vy_nibble, NULL, CPU_Extra],
+  extra: [FX07_0A, FX15_18_1E, LD_F_Vx, LD_B_Vx, NULL, NULL, LD_Vx_I, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL],
+  arithmetic: [LD_Vx_Vy, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL],
+  load: function(rom) {
+    var address, byte, j, len, results;
+    results = [];
+    for (address = j = 0, len = rom.length; j < len; address = ++j) {
+      byte = rom[address];
+      results.push(this.ram[address + 0x200] = byte);
+    }
+    return results;
+  },
+  fetch: function() {
+    var pc, ram;
+    ram = this.ram, pc = this.pc;
+    this.opcode = (ram[pc] << 8) + ram[pc + 1];
+    return this.pc += 2;
+  },
+  execute: function() {
+    var address;
+    this.fetch();
+    address = (this.opcode & 0xF000) >> 12;
+    this.nnn = this.opcode & 0x0FFF;
+    this.kk = this.nnn & 0x0FF;
+    this.n = this.kk & 0x0F;
+    this.x = (this.nnn & 0xF00) >> 8;
+    this.y = (this.nnn & 0x0F0) >> 4;
+    this.table[address].call(this);
+    if (this.dt) {
+      this.dt = this.dt - 1;
+    }
+    if (this.st) {
+      if (--this.st === 0) {
+        return console.info('beep');
+      }
+    }
+  }
+};
+
+module.exports = Cpu;
+
+
+},{"./decTo":10,"./polyfill.js":12}],10:[function(require,module,exports){
+module.exports = {
+  bin: function(dec, base) {
+    if (base == null) {
+      base = 2;
+    }
+    return dec.toString(base);
+  },
+  oct: function(dec, base) {
+    if (base == null) {
+      base = 8;
+    }
+    return dec.toString(base);
+  },
+  hex: function(dec, base) {
+    if (base == null) {
+      base = 16;
+    }
+    return dec.toString(base).toUpperCase();
+  }
+};
+
+
+},{}],11:[function(require,module,exports){
+var Display;
+
+Display = function(width, height, exp) {
+  if (exp == null) {
+    exp = 1;
+  }
+  this.element = document.createElement('canvas');
+  this.element.width = width * exp;
+  this.element.height = height * exp;
+  this.ctx = this.element.getContext('2d');
+  this.width = width;
+  this.height = height;
+  this.exp = exp;
+  this.ctx.fillStyle = '#FFF';
+  this.ctx.fillRect(0, 0, this.element.width, this.element.height);
+};
+
+Display.prototype = {
+  clear: function() {
+    return this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+  },
+  render: function(screen) {
+    var ctx, exp, i, index, len, px, results, width, x, y;
+    ctx = this.ctx, width = this.width, exp = this.exp;
+    results = [];
+    for (index = i = 0, len = screen.length; i < len; index = ++i) {
+      px = screen[index];
+      x = (index % width) * exp;
+      y = ((index / width) | 0) * exp;
+      if (px === 1) {
+        ctx.fillStyle = '#000';
+      } else {
+        ctx.fillStyle = '#FFF';
+      }
+      results.push(ctx.fillRect(x, y, exp, exp));
+    }
+    return results;
+  }
+};
+
+module.exports = Display;
+
+
+},{}],12:[function(require,module,exports){
 // based loosely on Kris Kowal's es-5shim.js
 // https://github.com/kriskowal/es5-shim/blob/master/es5-shim.js#L204
 //
@@ -760,4 +766,4 @@ Rom.prototype = {
 module.exports = Rom;
 
 
-},{}]},{},[1]);
+},{}]},{},[7]);

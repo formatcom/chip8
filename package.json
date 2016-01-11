@@ -4,9 +4,11 @@
   "description": "emulator chip-8",
   "main": "index.html",
   "scripts": {
-    "build": "mkdir -p dist && cat window.json > dist/package.json && browserify --transform coffeeify --extension=coffee chip8.coffee > dist/chip8.js && jade index.jade --pretty --out dist",
+    "build": "mkdir -p dist && cat window.json > dist/package.json && cd src && browserify --transform coffeeify --extension=coffee chip8.coffee > ../dist/chip8.js && jade index.jade --pretty --out ../dist",
     "start": "nw ./dist",
     "server": "cd dist && python -m SimpleHTTPServer 8080",
+    "make": "mkdir -p bin && cat ./node_modules/nw/nwjs/nw chip8.nw > ./bin/chip8 && chmod +x ./bin/chip8",
+    "make:windows": "mkdir bin && cat ./node_modules/nw/nwjs/nw.exe chip8.nw > ./bin/chip8.exe",
     "clean": "rm -rf dist *.log",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

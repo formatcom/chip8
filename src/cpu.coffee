@@ -1,5 +1,5 @@
 # Emulator CHIP-8
-require './polyfill.js'
+require './polyfill.js' # soport Array.prototype.map
 
 decTo = require './decTo'
 
@@ -86,9 +86,13 @@ DRW_Vx_Vy_nibble = ->
       @screen[pos] ^= px
   @display.render @screen
 CPU_Extra = -> @extra[@y].call @
-LD_Vx_DT = ->
-  console.log "FX07->Instruction: LD Vx, DT #{decTo.hex(@opcode)}"
-  @v[@x] = @dt
+FX07_0A = ->
+  {kk, dt, x} = @
+  if kk==0x07
+    console.log "FX07->Instruction: LD Vx, DT #{decTo.hex(@opcode)}"
+    @v[x] = dt
+  else if kk==0x0A
+    console.log "FAIL->Instruction: LD Vx, K #{decTo.hex(@opcode)}"
 FX15_18_1E = ->
   {kk} = @
   if kk == 0x15
@@ -126,7 +130,7 @@ Cpu.prototype =
   ]
 
   extra: [
-    NULL, FX15_18_1E, LD_F_Vx, LD_B_Vx, NULL, NULL, LD_Vx_I, NULL
+    FX07_0A, FX15_18_1E, LD_F_Vx, LD_B_Vx, NULL, NULL, LD_Vx_I, NULL
     NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
   ]
 
