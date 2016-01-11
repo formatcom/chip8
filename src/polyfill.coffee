@@ -12,7 +12,7 @@ map = (a) ->
       d[e] = call arguments[1], b[e], e++, b
     else
       d[e] = undefined
-    return d
+  return d
 
 if [].map
   Array.prototype.map = map
