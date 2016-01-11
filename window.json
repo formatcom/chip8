@@ -4,7 +4,9 @@
   "author": "Vinicio Valbuena (FormatCom)",
   "window": {
     "toolbar": false,
+    "resizable": false,
     "position": "center",
+    "icon": "html5.png",
     "width": 660,
     "height": 340
   }

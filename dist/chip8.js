@@ -353,7 +353,7 @@ module.exports = function() {
   return bin;
 }
 
-}).call(this,require('_process'),"/../node_modules/nw/lib")
+}).call(this,require('_process'),"/..\\node_modules\\nw\\lib")
 },{"_process":3,"fs":1,"path":2}],7:[function(require,module,exports){
 var Clock, Cpu, Display, Rom, clock, cpu, display, gui, isNode, rom;
 
