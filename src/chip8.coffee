@@ -6,16 +6,15 @@ Display = require './display'
 Rom     = require './rom'
 Clock   = require './clock'
 
-display = new Display 64, 32, 10
+display = new Display 'canvas', 64, 32, 6, 'renderPixel32bit'
 cpu     = new Cpu display
 rom     = new Rom display.element
 clock   = new Clock()
 
-document.body.appendChild display.element
 if isNode then gui.Window.get().show()
 
 rom.read (err, data) ->
   window.cpu = cpu
   cpu.load data
-  clock.cycle -> cpu.execute()
+  clock.cycle 60, -> cpu.execute()
   clock.start()
