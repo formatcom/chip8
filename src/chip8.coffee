@@ -15,6 +15,7 @@ if isNode then gui.Window.get().show()
 
 rom.read (err, data) ->
   window.cpu = cpu
+  cpu.init()
   cpu.load data
   clock.cycle 60, -> cpu.execute()
   clock.start()

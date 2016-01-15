@@ -25,7 +25,7 @@ Display = (id, width, height, exp=1, methodRender='renderPixel32bit') ->
   return
 
 Display.prototype =
-  clear: -> @ctx.clearRect 0, 0, @canvas.width, @canvas.height
+  clear: -> @ctx.clearRect 0, 0, @cwidth, @cheight
   renderPixel8bit: (screen) ->
     {ctx, cheight, cwidth, swidth, exp, data8bit, imgData} = @
 

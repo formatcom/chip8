@@ -7,5 +7,11 @@ html(lang='es')
   body(bgcolor='silver')
     canvas(id='canvas')
     br
-    span(id='fps') fps: 0
+    span(id='fps', style='margin-right: 10px') fps: 0
+    span render: 
+    select
+      option(value='renderPixel32bit') RenderPixel32bit
+      option(value='renderPixel8bit')  RenderPixel8bit
+      option(value='renderFillRect')   RenderFillRect
+
     script(src='chip8.js')    
